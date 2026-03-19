@@ -5,6 +5,55 @@ from matplotlib.patches import Patch
 
 class Visualization:
     @staticmethod
+    def plot_average_silent_ratios_with_ci(opinion_0_runs, opinion_1_runs, confidence=0.95):
+        """Plot per-step mean silent ratio with confidence intervals across runs."""
+        data_0 = np.asarray(opinion_0_runs, dtype=float)
+        data_1 = np.asarray(opinion_1_runs, dtype=float)
+
+        if data_0.ndim != 2 or data_1.ndim != 2:
+            raise ValueError("Run data must be a 2D array-like with shape (num_runs, num_steps).")
+
+        if data_0.shape != data_1.shape:
+            raise ValueError("Opinion 0 and opinion 1 run data must have the same shape.")
+
+        num_runs, num_steps = data_0.shape
+        z_value = 1.96 if np.isclose(confidence, 0.95) else 1.96
+
+        mean_0 = data_0.mean(axis=0)
+        mean_1 = data_1.mean(axis=0)
+
+        if num_runs > 1:
+            sem_0 = data_0.std(axis=0, ddof=1) / np.sqrt(num_runs)
+            sem_1 = data_1.std(axis=0, ddof=1) / np.sqrt(num_runs)
+            ci_0 = z_value * sem_0
+            ci_1 = z_value * sem_1
+        else:
+            ci_0 = np.zeros(num_steps)
+            ci_1 = np.zeros(num_steps)
+
+        steps = np.arange(num_steps)
+        plt.figure(figsize=(12, 6))
+
+        plt.plot(steps, mean_0, label='Mean Silent Ratio Opinion 0', color='blue')
+        plt.fill_between(steps, mean_0 - ci_0, mean_0 + ci_0, color='blue', alpha=0.2,
+                         label='95% CI Opinion 0')
+
+        plt.plot(steps, mean_1, label='Mean Silent Ratio Opinion 1', color='orange')
+        plt.fill_between(steps, mean_1 - ci_1, mean_1 + ci_1, color='orange', alpha=0.2,
+                         label='95% CI Opinion 1')
+        #plt.axvline(x=25, linestyle="--", color="gray", linewidth=1.5, label="transition of media scheme")
+
+        plt.title(f'Average Silent Ratios Over Time ({num_runs} runs)')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Silent Ratio')
+        plt.ylim(0, 1)
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig("output_plots/average_silent_ratios_ci.png", dpi=150, bbox_inches='tight')
+        plt.show()
+
+    @staticmethod
     def plot_silent_ratios(model):
         plt.figure(figsize=(12, 6))
         plt.plot(model.silent_ratios['opinion_0'], label='Silent Ratio Opinion 0', color='blue')
@@ -16,6 +65,8 @@ class Visualization:
         plt.grid()
         plt.savefig("output_plots/silent_ratios.png")
         plt.show()
+    
+
 
     @staticmethod
     def plot_media_gap(model):
@@ -147,3 +198,48 @@ class Visualization:
         plt.grid()
         plt.savefig("output_plots/difference_expressed_real_opinion.png", dpi=150, bbox_inches='tight')
         plt.show()
+
+    @staticmethod
+    def plot_expression_difference_with_ci(spoken_0_runs, spoken_1_runs, real_0_runs, real_1_runs, confidence=0.95):
+        from scipy import stats
+        
+        data = {
+            'Real Opinion 0':   np.asarray(real_0_runs,   dtype=float),
+            'Spoken Opinion 0': np.asarray(spoken_0_runs, dtype=float),
+            'Real Opinion 1':   np.asarray(real_1_runs,   dtype=float),
+            'Spoken Opinion 1': np.asarray(spoken_1_runs, dtype=float),
+        }
+        
+        labels = list(data.keys())
+        means = [np.mean(v) for v in data.values()]
+        n = len(spoken_0_runs)  # number of runs
+        
+        # 95% CI using t-distribution (robust for small n_runs)
+        cis = [stats.t.interval(confidence, df=n-1, loc=np.mean(v), scale=stats.sem(v)) for v in data.values()]
+        lower_err = [m - ci[0] for m, ci in zip(means, cis)]
+        upper_err = [ci[1] - m for m, ci in zip(means, cis)]
+        
+        colors = ['#3266AD', '#85B7EB', '#E2A640', '#F5C4B3']
+        
+        fig, ax = plt.subplots()
+        # bars with asymmetric CI
+        bars = ax.bar(labels, means, color=colors, width=0.5,
+                    yerr=[lower_err, upper_err], capsize=5,
+                    error_kw={'elinewidth': 1.5, 'ecolor': '#444441'})
+        
+        # annotate mean values on top of bars
+        for i, (bar, mean) in enumerate(zip(bars, means)):
+            ax.text(bar.get_x() + bar.get_width() / 2, 
+                    bar.get_height() + upper_err[i] + 1,
+                    f'{mean:.1f}', ha='center', va='bottom', fontsize=9, color='#444441')
+        
+        ax.set_ylabel('Number of agents')
+        ax.set_title(f'Real vs. spoken opinion distribution (mean ± {int(confidence*100)}% CI, n={n} runs)')
+        ax.grid(axis='y', alpha=0.3, linewidth=0.5)
+        ax.spines[['top', 'right']].set_visible(False)
+        
+        plt.tight_layout()
+        plt.savefig("output_plots/difference_expressed_real_opinion_with_ci.png", dpi=150, bbox_inches='tight')
+        plt.show()
+
+

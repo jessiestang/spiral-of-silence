@@ -18,10 +18,11 @@ class SocialMedia(Model):
         self._media_gap = []  # Changed to private attribute
         self.media_0 = []
         self.media_1 = []
-        self.alpha = 0.2
-        
+        self.alpha = 0.8
+        self.intervention_threshold = 0.1
+    
         for i in range(self.num_agents):
-            if random.random() < 0.9:
+            if random.random() < 0.8:
                 agent = HumanAgent(i, self)
             else:
                 agent = LLMAgent(i, self)
@@ -38,12 +39,27 @@ class SocialMedia(Model):
             model_reporters={"silent_ratio_0": "silent_ratio_0", "silent_ratio_1": "silent_ratio_1", "media_gap": "media_gap", "media_0":"media_0", "media_1":"media_1"}
         )
 
-    def step(self):
+    def step_weighted_media(self):
         self.schedule.step()
         self.update_media_opinion_weighted()
         self.calculate_silent_ratios()
         self.calculate_media_gap()
         self.datacollector.collect(self)
+    
+    def step_no_intervention(self):
+        self.schedule.step()
+        self.update_media_opinion_default()
+        self.calculate_silent_ratios()
+        self.calculate_media_gap()
+        self.datacollector.collect(self)
+    
+    def step_balanced(self):
+        self.schedule.step()
+        self.update_media_opinion_balanced()
+        self.calculate_silent_ratios()
+        self.calculate_media_gap()
+        self.datacollector.collect(self)
+    
 
     def update_media_opinion_default(self):
         """
@@ -70,24 +86,41 @@ class SocialMedia(Model):
         """
         This function updates the media opinions by slightly favoring the minority opinion
         """
-        opinions = [agent.opinion for agent in self.schedule.agents if agent.is_speaking]
+        # LLMs broadcast more messages than human users
+        opinions = []
+        for agent in self.schedule.agents:
+            if agent.is_speaking:
+                opinions.append(agent.opinion)
         count_0 = sum(1 for opinion in opinions if opinion == 0)
         count_1 = sum(1 for opinion in opinions if opinion == 1)
+        imbalance = abs(count_0 - count_1) / (len(opinions) + 1e-5)
+
+        if imbalance < self.intervention_threshold:  
+        # difference too small — no intervention, reflect reality as-is
+            self.media_opinions = opinions
+            return self.media_opinions
+    
         if count_0 >= count_1:
             weighted = int((1 + self.alpha) * count_1)
-            self.media_opinions = [0] * (len(opinions) - weighted) + [1] * weighted
+            if weighted <= len(opinions):
+                self.media_opinions = [0] * (len(opinions) - weighted) + [1] * weighted
+            else:
+                self.media_opinions = [1] * weighted
         else:
             weighted = int((1 + self.alpha) * count_0)
-            self.media_opinions = [0] * weighted + [1] * (len(opinions) - weighted)
+            if weighted <= len(opinions):
+                self.media_opinions = [0] * weighted + [1] * (len(opinions) - weighted)
+            else:
+                self.media_opinions = [0] * weighted
         return self.media_opinions
 
     def calculate_silent_ratios(self):
-        silent_count_0 = sum(1 for agent in self.schedule.agents if agent.opinion == 0 and not agent.is_speaking)
-        silent_count_1 = sum(1 for agent in self.schedule.agents if agent.opinion == 1 and not agent.is_speaking)
-        num_type_0 = sum(1 for agent in self.schedule.agents if agent.opinion == 0)
-        num_type_1 = sum(1 for agent in self.schedule.agents if agent.opinion == 1)
-        self.silent_ratios['opinion_0'].append(silent_count_0 / num_type_0)
-        self.silent_ratios['opinion_1'].append(silent_count_1 / num_type_1)
+        silent_count_0 = sum(1 for agent in self.schedule.agents if agent.opinion == 0 and not agent.is_speaking and isinstance(agent, HumanAgent))
+        silent_count_1 = sum(1 for agent in self.schedule.agents if agent.opinion == 1 and not agent.is_speaking and isinstance(agent, HumanAgent))
+        num_type_0 = sum(1 for agent in self.schedule.agents if agent.opinion == 0 and isinstance(agent, HumanAgent))
+        num_type_1 = sum(1 for agent in self.schedule.agents if agent.opinion == 1 and isinstance(agent, HumanAgent))
+        self.silent_ratios['opinion_0'].append(silent_count_0 / num_type_0 if num_type_0 > 0 else 0)
+        self.silent_ratios['opinion_1'].append(silent_count_1 / num_type_1 if num_type_1 > 0 else 0)
 
     def calculate_media_gap(self):
         # count how many agents are speak for 0 and 1 in opinions list
