@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from agent import HumanAgent, LLMAgent
 from matplotlib.patches import Patch
+import seaborn as sns
+from mpl_toolkits.mplot3d import Axes3D
 
 class Visualization:
     @staticmethod
@@ -240,6 +242,60 @@ class Visualization:
         
         plt.tight_layout()
         plt.savefig("output_plots/difference_expressed_real_opinion_with_ci.png", dpi=150, bbox_inches='tight')
+        plt.show()
+    
+    @staticmethod
+    def plot_confidence_distribution(confidence_start, confidence_end):
+        sns.kdeplot(confidence_start, label='Initial Confidence', fill=True, color='brown', alpha=0.5, clip = (0,1), bw_adjust = 0.5)
+        sns.kdeplot(confidence_end, label='Final Confidence', fill=True, color='yellow', alpha=0.5, clip = (0,1), bw_adjust = 0.5)
+        plt.title('Distribution of Total Agent Confidence Levels at Start and End of Simulation')
+        plt.xlabel('Confidence Level')
+        plt.ylabel('Density')
+        plt.legend()
+        plt.grid()
+        plt.tight_layout()
+        plt.savefig("output_plots/confidence_distribution.png", dpi=150, bbox_inches='tight')
+        plt.show()
+    
+    @staticmethod
+    def plot_sensitivity(silence_ratio_0, silence_ratio_1, parameter_name):
+        plt.plot(silence_ratio_0.keys(), silence_ratio_0.values(), label = "opinion_0", marker = "o", color = "blue")
+        plt.plot(silence_ratio_1.keys(), silence_ratio_1.values(), label = "opinion_1", marker = "o", color = "orange")
+        plt.title(f'Sensitivity Analysis of {parameter_name} on Silent Ratios')
+        plt.xlabel(parameter_name)
+        plt.ylabel('Average Silent Ratio (30 runs each condition)')
+        plt.legend()
+        plt.grid()
+        plt.savefig(f"output_plots/sensitivity_{parameter_name}.png", dpi=150, bbox_inches='tight')
+        plt.show()
+    
+    @staticmethod
+    def plot_sensitivity_3d(alpha_values, beta_values, silent_0_grid, silent_1_grid):
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        alpha_values = np.asarray(alpha_values, dtype=float)
+        beta_values = np.asarray(beta_values, dtype=float)
+        silent_0_grid = np.asarray(silent_0_grid, dtype=float)
+        silent_1_grid = np.asarray(silent_1_grid, dtype=float)
+        
+        # create the meshgrid for plotting
+        Alpha, Beta = np.meshgrid(alpha_values, beta_values)
+        
+        # Plot surface for opinion 0
+        ax.plot_surface(Alpha, Beta, silent_0_grid, color='blue', alpha=0.5, label='Opinion 0')
+        # Plot surface for opinion 1
+        ax.plot_surface(Alpha, Beta, silent_1_grid, color='orange', alpha=0.5, label='Opinion 1')
+        
+        ax.set_xlabel('Alpha (media bias strength)')
+        ax.set_ylabel('Beta (global vs local weight)')
+        ax.set_zlabel('Average Silent Ratio')
+        ax.set_title('Sensitivity Analysis of Alpha and Beta on Silent Ratios')
+        
+        # Create custom legend
+        blue_patch = Patch(color='blue', label='Opinion 0')
+        orange_patch = Patch(color='orange', label='Opinion 1')
+        plt.legend()
+        plt.savefig("output_plots/sensitivity_alpha_beta_3d.png", dpi=150, bbox_inches='tight')
         plt.show()
 
 

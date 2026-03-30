@@ -5,7 +5,7 @@ from agent import HumanAgent, LLMAgent
 from visualization import Visualization
 
 
-def run_multiple_simulations(num_runs, num_steps=200, num_agents=400, width=20, height=20):
+def run_multiple_simulations(num_runs, num_steps, num_agents, width, height, alpha, beta):
     """Run repeated simulations and return per-step silent ratios for each run."""
     opinion_0_runs = []
     opinion_1_runs = []
@@ -15,9 +15,9 @@ def run_multiple_simulations(num_runs, num_steps=200, num_agents=400, width=20, 
     spoken_0_runs = []
 
     for run_idx in range(num_runs):
-        model = SocialMedia(num_agents=num_agents, width=width, height=height)
+        model = SocialMedia(num_agents=num_agents, width=width, height=height, alpha=alpha, beta=beta)
         for _ in range(num_steps):
-            model.step_no_intervention()
+            model.step_weighted_media()
 
         opinion_0_series = np.asarray(model.silent_ratios['opinion_0'], dtype=float)
         opinion_1_series = np.asarray(model.silent_ratios['opinion_1'], dtype=float)
@@ -42,16 +42,21 @@ def run_multiple_simulations(num_runs, num_steps=200, num_agents=400, width=20, 
     return np.asarray(opinion_0_runs), np.asarray(opinion_1_runs), np.asarray(real_1_runs), np.asarray(real_0_runs), np.asarray(spoken_0_runs), np.asarray(spoken_1_runs)
 
 
-def summarize_final_state(num_agents=400, width=20, height=20, num_steps=200):
-    """Run one model and print final-state counts for quick diagnostics."""
-    model = SocialMedia(num_agents=num_agents, width=width, height=height)
-    for _ in range(num_steps):
-        model.step()
+def summarize_final_state(num_agents, width, height, num_steps, alpha, beta):
+    """Run one simulation and return model plus start/end human confidence arrays."""
+    model = SocialMedia(num_agents=num_agents, width=width, height=height, alpha=alpha, beta=beta)
+    initial_confidence = model.get_human_confidence_distribution().copy()
 
+    for _ in range(num_steps):
+        model.step_weighted_media()
+
+    final_confidence = model.get_human_confidence_distribution().copy()
     model_df = model.datacollector.get_model_vars_dataframe()
     agent_df = model.datacollector.get_agent_vars_dataframe()
     print(f"Collected model rows: {len(model_df)}")
     print(f"Collected agent rows: {len(agent_df)}")
+    print(f"Human confidence count at start: {len(initial_confidence)}")
+    print(f"Human confidence count at end: {len(final_confidence)}")
 
     num_human_opinion_0 = sum(1 for agent in model.schedule.agents if isinstance(agent, HumanAgent) and agent.opinion == 0)
     num_human_opinion_1 = sum(1 for agent in model.schedule.agents if isinstance(agent, HumanAgent) and agent.opinion == 1)
@@ -63,9 +68,9 @@ def summarize_final_state(num_agents=400, width=20, height=20, num_steps=200):
     print(f"Number of LLM Agents with Opinion 0: {num_llm_opinion_0}")
     print(f"Number of LLM Agents with Opinion 1: {num_llm_opinion_1}")
 
-    return model
+    return model, initial_confidence, final_confidence
 
-def run_delayed_intervention(num_runs, num_steps, num_agents, width, height):
+def run_delayed_intervention(num_runs, num_steps, num_agents, width, height, alpha, beta):
     """Run repeated simulations and return per-step silent ratios for each run."""
     opinion_0_runs = []
     opinion_1_runs = []
@@ -73,6 +78,7 @@ def run_delayed_intervention(num_runs, num_steps, num_agents, width, height):
     real_0_runs = []
     spoken_1_runs = []
     spoken_0_runs = []
+    
 
     for run_idx in range(num_runs):
         model = SocialMedia(num_agents=num_agents, width=width, height=height)
@@ -108,11 +114,14 @@ if __name__ == "__main__":
     if not os.path.exists("output_plots"):
         os.makedirs("output_plots")
 
-    NUM_RUNS = 30
+    NUM_RUNS = 10
     NUM_STEPS = 100
     NUM_AGENTS = 100
     GRID_WIDTH = 10
     GRID_HEIGHT = 10
+    ALPHA = 0.8
+    BETA = 0.8
+
 
     print("initialization finished, start running the model")
 
@@ -122,6 +131,8 @@ if __name__ == "__main__":
         num_agents=NUM_AGENTS,
         width=GRID_WIDTH,
         height=GRID_HEIGHT,
+        alpha=ALPHA,
+        beta=BETA,
     )
 
     print("Data collection finished, start plotting")
@@ -130,12 +141,17 @@ if __name__ == "__main__":
     Visualization.plot_expression_difference_with_ci(spoken_0_runs,spoken_1_runs, real_0_runs, real_1_runs)
 
     # Optional single-run diagnostics and legacy plots.
-    model = summarize_final_state(
+    model, initial_confidence, final_confidence = summarize_final_state(
         num_agents=NUM_AGENTS,
         width=GRID_WIDTH,
         height=GRID_HEIGHT,
         num_steps=NUM_STEPS,
+        alpha=ALPHA,
+        beta=BETA,
+
     )
+    print(f"Single-run confidence captured: start mean={np.mean(initial_confidence):.3f}, end mean={np.mean(final_confidence):.3f}")
+    Visualization.plot_confidence_distribution(initial_confidence, final_confidence)
     #Visualization.plot_silent_ratios(model)
     #Visualization.plot_media_gap(model)
     #Visualization.difference_expressed_real_opinion(model)

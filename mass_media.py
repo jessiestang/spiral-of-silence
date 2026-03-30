@@ -9,7 +9,7 @@ from mesa.datacollection import DataCollector
 from agent import HumanAgent, LLMAgent
 
 class SocialMedia(Model):
-    def __init__(self, num_agents=100, width=10, height=10):
+    def __init__(self, num_agents=100, width=10, height=10, alpha = 0.8, beta = 0.6):
         self.num_agents = num_agents
         self.grid = MultiGrid(width, height, True)
         self.schedule = RandomActivation(self)
@@ -18,12 +18,13 @@ class SocialMedia(Model):
         self._media_gap = []  # Changed to private attribute
         self.media_0 = []
         self.media_1 = []
-        self.alpha = 0.8
+        self.alpha = alpha # weight for favoring minority opinion in media representation
+        self.beta = beta # weight for global vs local opinion
         self.intervention_threshold = 0.1
     
         for i in range(self.num_agents):
             if random.random() < 0.8:
-                agent = HumanAgent(i, self)
+                agent = HumanAgent(i, self, self.beta)
             else:
                 agent = LLMAgent(i, self)
             self.schedule.add(agent)
@@ -113,6 +114,13 @@ class SocialMedia(Model):
             else:
                 self.media_opinions = [0] * weighted
         return self.media_opinions
+    
+    def get_human_confidence_distribution(self):
+        """Return current confidence levels for all human agents."""
+        return np.asarray(
+            [agent.confidence_level for agent in self.schedule.agents if isinstance(agent, HumanAgent) and agent.opinion == 1],
+            dtype=float,
+        )
 
     def calculate_silent_ratios(self):
         silent_count_0 = sum(1 for agent in self.schedule.agents if agent.opinion == 0 and not agent.is_speaking and isinstance(agent, HumanAgent))
@@ -147,3 +155,5 @@ class SocialMedia(Model):
     @property
     def media_gap_series(self):
         return self._media_gap
+
+    

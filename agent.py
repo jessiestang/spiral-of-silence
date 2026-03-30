@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 from mesa import Agent
 
 class HumanAgent(Agent):
-    def __init__(self, unique_id, model, beta = 0.8):
+    def __init__(self, unique_id, model, beta):
         super().__init__(unique_id, model)
         self.opinion = np.random.choice([0, 1], p=[0.6, 0.4]) # create a majority and minority opinion
         self.social_isolation_fear = np.random.beta(a=2, b=2)# Random fear of social isolation
-        self.confidence_level = random.uniform(0, 1) # random confidence level
+        self.confidence_level = np.random.beta(a=2, b=2) # random confidence level
         self.is_speaking = False
         self.opinion_similarity_ratio_local = 0.0 # Proportion of neighbors sharing the same opinion
         self.opinion_similarity_ratio_global = 0.0 # Proportion of media messages sharing the same opinion
@@ -46,13 +46,14 @@ class HumanAgent(Agent):
     
     def calculate_public_opinion(self):
         """Calculate the proportion of media messages that share the same opinion."""
-        media_opinion = self.model.update_media_opinion_default()
+        media_opinion = self.model.update_media_opinion_weighted()
         if len(media_opinion) > 20:  # randomly select 20 media messages
             media_opinion = random.sample(media_opinion, 20)
         same_opinion_count = sum(1 for opinion in media_opinion if opinion == self.opinion)
         self.opinion_similarity_ratio_global = same_opinion_count / len(media_opinion) if media_opinion else 1
         # if no media messages, then we can assume all media messages share the same opinion, so ratio is 1
-        
+    
+
     def should_speak(self):
         """
         This function determines the decision-making process of human agents
@@ -61,10 +62,8 @@ class HumanAgent(Agent):
         signal = self.beta * self.opinion_similarity_ratio_global + (1 - self.beta) * self.opinion_similarity_ratio_local
         if signal < self.social_isolation_fear: # speak if this signal is stronger than fear of isolation, or the agent is very confident
             self.confidence_level = max(0, self.confidence_level - 0.025) # decrease confidence if not speaking
-            if self.confidence_level > 0.4:
+            if self.confidence_level > 0.3:
                 return True
-            #if self.confidence_level < 0.1:
-                #self.permanently_silent = True # if confidence is too low, become permanently silent
             return False
         self.confidence_level = min(1.0, self.confidence_level + 0.025)
         return True
