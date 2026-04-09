@@ -4,11 +4,21 @@ from agent import HumanAgent, LLMAgent
 from matplotlib.patches import Patch
 import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
+from scipy import stats
 
 class Visualization:
     @staticmethod
     def plot_average_silent_ratios_with_ci(opinion_0_runs, opinion_1_runs, confidence=0.95):
         """Plot per-step mean silent ratio with confidence intervals across runs."""
+        plt.rcParams.update({
+        "font.size": 14,         
+        "axes.titlesize": 16,
+        "axes.labelsize": 15,
+        "xtick.labelsize": 13,
+        "ytick.labelsize": 13,
+        "legend.fontsize": 12
+    })
+        
         data_0 = np.asarray(opinion_0_runs, dtype=float)
         data_1 = np.asarray(opinion_1_runs, dtype=float)
 
@@ -34,7 +44,7 @@ class Visualization:
             ci_1 = np.zeros(num_steps)
 
         steps = np.arange(num_steps)
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(8, 5))
 
         plt.plot(steps, mean_0, label='Mean Silent Ratio Opinion 0', color='blue')
         plt.fill_between(steps, mean_0 - ci_0, mean_0 + ci_0, color='blue', alpha=0.2,
@@ -190,7 +200,7 @@ class Visualization:
         real_opinion_0 = sum(1 for agent in model.schedule.agents if agent.opinion == 0)
         real_opinion_1 = sum(1 for agent in model.schedule.agents if agent.opinion == 1)
         spoken_opinion_0 = sum(1 for agent in model.schedule.agents if (agent.opinion == 0) and agent.is_speaking) 
-        spoken_opinion_1 = sum(1 for agent in model.schedule.agents if (agent.opinion == 1) and agent.is_speaking) 
+        spoken_opinion_1 = sum(1 for agent in model.schedule.agents if (agent.opinion == 1) and agent.is_speaking)
 
         plt.bar(['Real Opinion 0', 'Spoken Opinion 0', 'Real Opinion 1', 'Spoken Opinion 1'], 
                 [real_opinion_0, spoken_opinion_0, real_opinion_1, spoken_opinion_1],
@@ -202,52 +212,64 @@ class Visualization:
         plt.show()
 
     @staticmethod
-    def plot_expression_difference_with_ci(spoken_0_runs, spoken_1_runs, real_0_runs, real_1_runs, confidence=0.95):
-        from scipy import stats
-        
+    def plot_expression_difference_with_ci(spoken_0_runs, spoken_1_runs, real_0_runs, real_1_runs):
+        """
+        Compares real vs spoken opinion distribution across multiple runs with CI.
+        """
         data = {
             'Real Opinion 0':   np.asarray(real_0_runs,   dtype=float),
             'Spoken Opinion 0': np.asarray(spoken_0_runs, dtype=float),
             'Real Opinion 1':   np.asarray(real_1_runs,   dtype=float),
             'Spoken Opinion 1': np.asarray(spoken_1_runs, dtype=float),
         }
-        
-        labels = list(data.keys())
-        means = [np.mean(v) for v in data.values()]
-        n = len(spoken_0_runs)  # number of runs
-        
-        # 95% CI using t-distribution (robust for small n_runs)
-        cis = [stats.t.interval(confidence, df=n-1, loc=np.mean(v), scale=stats.sem(v)) for v in data.values()]
+
+        labels  = list(data.keys())
+        means   = [np.mean(v) for v in data.values()]
+        n       = len(real_0_runs)
+        cis     = [stats.t.interval(0.95, df=n-1, loc=np.mean(v), scale=stats.sem(v)) 
+                for v in data.values()]
         lower_err = [m - ci[0] for m, ci in zip(means, cis)]
         upper_err = [ci[1] - m for m, ci in zip(means, cis)]
-        
-        colors = ['#3266AD', '#85B7EB', '#E2A640', '#F5C4B3']
-        
-        fig, ax = plt.subplots()
-        # bars with asymmetric CI
-        bars = ax.bar(labels, means, color=colors, width=0.5,
-                    yerr=[lower_err, upper_err], capsize=5,
-                    error_kw={'elinewidth': 1.5, 'ecolor': '#444441'})
-        
-        # annotate mean values on top of bars
-        for i, (bar, mean) in enumerate(zip(bars, means)):
-            ax.text(bar.get_x() + bar.get_width() / 2, 
-                    bar.get_height() + upper_err[i] + 1,
-                    f'{mean:.1f}', ha='center', va='bottom', fontsize=9, color='#444441')
-        
-        ax.set_ylabel('Number of agents')
-        ax.set_title(f'Real vs. spoken opinion distribution (mean ± {int(confidence*100)}% CI, n={n} runs)')
-        ax.grid(axis='y', alpha=0.3, linewidth=0.5)
-        ax.spines[['top', 'right']].set_visible(False)
-        
-        plt.tight_layout()
-        plt.savefig("output_plots/difference_expressed_real_opinion_with_ci.png", dpi=150, bbox_inches='tight')
-        plt.show()
+        colors    = ['#3266AD', '#85B7EB', '#E2A640', '#F5C4B3']
+
+        custom_params = {
+            "font.size": 14,
+            "axes.titlesize": 16,
+            "axes.labelsize": 15,
+            "xtick.labelsize": 13,
+            "ytick.labelsize": 13,
+            "legend.fontsize": 12
+        }
+
+        with plt.rc_context(custom_params):
+            fig, ax = plt.subplots(figsize=(9, 5))
+
+            bars = ax.bar(labels, means, color=colors, width=0.5,
+                        yerr=[lower_err, upper_err], capsize=5,
+                        error_kw={'elinewidth': 1.5, 'ecolor': '#444441'})
+
+            # annotate means
+            for i, (bar, mean) in enumerate(zip(bars, means)):
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + upper_err[i] + 0.5,
+                        f'{mean:.1f}', ha='center', va='bottom',
+                        fontsize=14, color='#444441', fontweight='bold')
+
+            ax.set_ylabel('Number of agents')
+            ax.set_title(f'Real vs. spoken opinion distribution (mean ± 95% CI, n={n} runs)')
+            ax.set_xticks(range(len(labels)))
+            ax.set_xticklabels(labels, rotation=15, ha='right')
+            ax.grid(axis='y', alpha=0.3, linewidth=0.5)
+            ax.spines[['top', 'right']].set_visible(False)
+
+            plt.tight_layout()
+            plt.savefig("output_plots/difference_expressed_real_opinion.png", dpi=150, bbox_inches='tight')
+            plt.show()
     
     @staticmethod
     def plot_confidence_distribution(confidence_start, confidence_end):
-        sns.kdeplot(confidence_start, label='Initial Confidence', fill=True, color='brown', alpha=0.5, clip = (0,1), bw_adjust = 0.5)
-        sns.kdeplot(confidence_end, label='Final Confidence', fill=True, color='yellow', alpha=0.5, clip = (0,1), bw_adjust = 0.5)
+        sns.kdeplot(confidence_start, label='Initial Confidence', fill=True, color='red', alpha=0.5, clip = (0,1), bw_adjust = 0.5)
+        sns.kdeplot(confidence_end, label='Final Confidence', fill=True, color='orange', alpha=0.5, clip = (0,1), bw_adjust = 0.5)
         plt.title('Distribution of Total Agent Confidence Levels at Start and End of Simulation')
         plt.xlabel('Confidence Level')
         plt.ylabel('Density')
@@ -256,7 +278,7 @@ class Visualization:
         plt.tight_layout()
         plt.savefig("output_plots/confidence_distribution.png", dpi=150, bbox_inches='tight')
         plt.show()
-    
+        
     @staticmethod
     def plot_sensitivity(silence_ratio_0, silence_ratio_1, parameter_name):
         plt.plot(silence_ratio_0.keys(), silence_ratio_0.values(), label = "opinion_0", marker = "o", color = "blue")
