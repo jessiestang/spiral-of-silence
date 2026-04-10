@@ -81,14 +81,48 @@ class Visualization:
 
 
     @staticmethod
-    def plot_media_gap(model):
-        plt.figure(figsize=(12, 6))
-        plt.plot(model.media_0, label='Media Opinion 0 Count', color='blue')
-        plt.plot(model.media_1, label='Media Opinion 1 Count', color='red')
-        plt.plot(model.media_gap_series, label='Media Gap', color='green')
-        plt.title('Media Gap Over Time')
+    def plot_media_gap_with_ci(media_0, media_1):
+        """
+        Media_0 and media_1 are two numpy arrays of shape (num_runs, num_steps) containing the media opinion counts across runs and time steps.
+        This function will plot the average media gap (media_0 - media_1) over time with confidence intervals.
+        """
+        plt.rcParams.update({
+        "font.size": 14,         
+        "axes.titlesize": 16,
+        "axes.labelsize": 15,
+        "xtick.labelsize": 13,
+        "ytick.labelsize": 13,
+        "legend.fontsize": 12
+    })
+        # calculate relevant 
+        media_0 = np.asarray(media_0, dtype=float)
+        media_1 = np.asarray(media_1, dtype=float)
+        if media_0.ndim != 2 or media_1.ndim != 2:
+            raise ValueError("Run data must be a 2D array-like with shape (num_runs, num_steps).")
+        
+        num_runs, num_steps = media_0.shape
+        num_steps = np.arange(num_steps)
+        mean_0 = media_0.mean(axis=0)
+        mean_1 = media_1.mean(axis=0)
+        sem_0 = media_0.std(axis=0, ddof=1) / np.sqrt(num_runs)
+        sem_1 = media_1.std(axis=0, ddof=1) / np.sqrt(num_runs)
+        z_value = 1.96  # for 95% confidence
+        ci_0 = z_value * sem_0
+        ci_1 = z_value * sem_1
+
+        # start plotting
+        plt.figure(figsize=(8, 5))
+
+        plt.plot(num_steps, mean_0, label='Mean Media Message Coverage Opinion 0', color='blue')
+        plt.fill_between(num_steps, mean_0 - ci_0, mean_0 + ci_0, color='blue', alpha=0.2,
+                         label='95% CI Opinion 0')
+
+        plt.plot(num_steps, mean_1, label='Mean Media Message Coverage Opinion 1', color='red')
+        plt.fill_between(num_steps, mean_1 - ci_1, mean_1 + ci_1, color='red', alpha=0.2,
+                         label='95% CI Opinion 1')
+        plt.title(f'Media Coverage Over Time (average across {num_runs} runs)')
         plt.xlabel('Time Steps')
-        plt.ylabel('Media Gap')
+        plt.ylabel('Media Message Count')
         plt.legend()
         plt.grid()
         plt.savefig("output_plots/media_gap.png")

@@ -17,7 +17,7 @@ def run_multiple_simulations(num_runs, num_steps, num_agents, width, height, alp
     for run_idx in range(num_runs):
         model = SocialMedia(num_agents=num_agents, width=width, height=height, alpha=alpha, beta=beta)
         for _ in range(num_steps):
-            model.step_weighted_media()
+            model.step_no_intervention()
 
         opinion_0_series = np.asarray(model.silent_ratios['opinion_0'], dtype=float)
         opinion_1_series = np.asarray(model.silent_ratios['opinion_1'], dtype=float)
@@ -110,22 +110,39 @@ def run_delayed_intervention(num_runs, num_steps, num_agents, width, height, alp
 
     return np.asarray(opinion_0_runs), np.asarray(opinion_1_runs), np.asarray(real_1_runs), np.asarray(real_0_runs), np.asarray(spoken_0_runs), np.asarray(spoken_1_runs)
 
+def run_multiple_media_gap(num_runs, num_steps, num_agents, width, height, alpha, beta):
+    media_0 = []
+    media_1 = []
+
+    for run in range(num_runs):
+        model = SocialMedia(num_agents=num_agents, width=width, height=height, alpha=alpha, beta=beta)
+        for _ in range(num_steps):
+            model.step_weighted_media()
+
+        media_0_series = np.asarray(model.media_0, dtype=float)
+        media_1_series = np.asarray(model.media_1, dtype=float)
+        media_0.append(media_0_series)
+        media_1.append(media_1_series)
+        print(f"Completed run {run + 1}/{num_runs}")
+
+    return np.asarray(media_0), np.asarray(media_1)
+
 if __name__ == "__main__":
     if not os.path.exists("output_plots"):
         os.makedirs("output_plots")
 
-    NUM_RUNS = 10
+    NUM_RUNS = 30
     NUM_STEPS = 100
     NUM_AGENTS = 100
     GRID_WIDTH = 10
     GRID_HEIGHT = 10
-    ALPHA = 0.8
+    ALPHA = 0.2
     BETA = 0.8
 
 
     print("initialization finished, start running the model")
 
-    opinion_0_runs, opinion_1_runs, real_1_runs, real_0_runs, spoken_0_runs, spoken_1_runs = run_multiple_simulations(
+    """opinion_0_runs, opinion_1_runs, real_1_runs, real_0_runs, spoken_0_runs, spoken_1_runs = run_multiple_simulations(
         num_runs=NUM_RUNS,
         num_steps=NUM_STEPS,
         num_agents=NUM_AGENTS,
@@ -138,10 +155,10 @@ if __name__ == "__main__":
     print("Data collection finished, start plotting")
 
     Visualization.plot_average_silent_ratios_with_ci(opinion_0_runs, opinion_1_runs, confidence=0.95)
-    Visualization.plot_expression_difference_with_ci(spoken_0_runs,spoken_1_runs, real_0_runs, real_1_runs)
+    Visualization.plot_expression_difference_with_ci(spoken_0_runs,spoken_1_runs, real_0_runs, real_1_runs)"""
 
     # Optional single-run diagnostics and legacy plots.
-    model, initial_confidence, final_confidence = summarize_final_state(
+    """model, initial_confidence, final_confidence = summarize_final_state(
         num_agents=NUM_AGENTS,
         width=GRID_WIDTH,
         height=GRID_HEIGHT,
@@ -149,9 +166,21 @@ if __name__ == "__main__":
         alpha=ALPHA,
         beta=BETA,
 
-    )
-    print(f"Single-run confidence captured: start mean={np.mean(initial_confidence):.3f}, end mean={np.mean(final_confidence):.3f}")
-    Visualization.plot_confidence_distribution(initial_confidence, final_confidence)
+    )"""
+    #print(f"Single-run confidence captured: start mean={np.mean(initial_confidence):.3f}, end mean={np.mean(final_confidence):.3f}")
+    #Visualization.plot_confidence_distribution(initial_confidence, final_confidence)
+
+
     #Visualization.plot_silent_ratios(model)
     #Visualization.plot_media_gap(model)
     #Visualization.difference_expressed_real_opinion(model)
+
+    media_0, media_1 = run_multiple_media_gap(
+        num_runs=NUM_RUNS, 
+        num_steps=NUM_STEPS, 
+        num_agents=NUM_AGENTS, 
+        width=GRID_WIDTH, 
+        height=GRID_HEIGHT, 
+        alpha=ALPHA, 
+        beta=BETA)
+    Visualization.plot_media_gap_with_ci(media_0, media_1)
